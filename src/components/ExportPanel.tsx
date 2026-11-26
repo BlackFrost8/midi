@@ -247,8 +247,11 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
               <button className="btn" disabled={props.busy} onClick={() => props.onExportThumbnail?.('uhd')}>
                 4K
               </button>
+              <button className="btn" disabled={props.busy} onClick={() => props.onExportThumbnail?.('square')}>
+                1000×1000
+              </button>
             </div>
-            <p className="hint">The design from the Thumbnail tab, with your edits and filter. YouTube size stays under the 2 MB limit.</p>
+            <p className="hint">The design from the Thumbnail tab, with your edits and filter. YouTube size stays under the 2 MB limit. 1000×1000 lays the design out again for a square (cover art, socials).</p>
           </>
         ) : (
           <p className="hint">The thumbnail is still being prepared.</p>

@@ -31,7 +31,7 @@ import { BRUSHES, STAMPS, TEXTURES, isStampBrush, type EditTool, type TextureId,
 import { BrushIcon, TextureIcon } from './BrushIcon';
 import type { ToolSettings } from './ThumbnailEditor';
 
-export type ThumbnailExportSize = 'youtube' | 'hd' | 'uhd';
+export type ThumbnailExportSize = 'youtube' | 'hd' | 'uhd' | 'square';
 
 interface Props {
   design: ThumbnailDesign;

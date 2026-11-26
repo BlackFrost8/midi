@@ -1638,7 +1638,14 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
     (size: ThumbnailExportSize) => {
       if (!thumbDesign) return;
       const { width, height } =
-        size === 'youtube' ? { width: 1280, height: 720 } : size === 'hd' ? { width: 1920, height: 1080 } : { width: 3840, height: 2160 };
+        size === 'youtube'
+          ? { width: 1280, height: 720 }
+          : size === 'hd'
+            ? { width: 1920, height: 1080 }
+            : size === 'square'
+              ? // Laid out afresh for the square, so nothing is cropped away.
+                { width: 1000, height: 1000 }
+              : { width: 3840, height: 2160 };
       void runExport('Rendering thumbnail…', async () => {
         // Let the busy bar paint before the render occupies the thread.
         await new Promise((resolve) => setTimeout(resolve, 16));
