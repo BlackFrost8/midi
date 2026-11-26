@@ -1356,7 +1356,13 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
     const { start, end } = videoRange();
     void runExport('Encoding MP4…', async (signal, report) => {
       // The audio as you hear it: stems and solo (and the solo focus) included.
-      const buffer = exportSettings.includeAudio ? ((await audioRef.current?.renderMix()) ?? null) : null;
+      // (An engine made before a live code update may lack renderMix: fall back to the plain recording.)
+      const engine = audioRef.current;
+      const buffer = !exportSettings.includeAudio || !engine
+        ? null
+        : typeof engine.renderMix === 'function'
+          ? await engine.renderMix()
+          : (engine.audio?.buffer ?? null);
       const blob = await recordMp4({
         ...base,
         fps: exportSettings.fps,
