@@ -493,89 +493,192 @@ function hash01(i: number, salt: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/*
+ * The fly-through's world, in depth units from the camera's start. At the
+ * first frame every element, ring and the arrangement project to exactly the
+ * thumbnail's layout; from there the camera travels forward through them.
+ */
+/** The thumbnail's background, the mouth of the tunnel; its centre breaks open as the camera moves. */
+const Z_MOUTH = 5;
+/** Further rings of the background line the bore, this far apart, up to the last one. */
+const RING_GAP = 0.6;
+const RING_LAST = 20;
+/** The live arrangement waits at the far end of the tunnel. */
+const Z_PORTAL = 20.6;
+/** Where the camera comes to rest: close enough that the arrangement exactly fills the frame. */
+const CAM_END = 18;
+/** The bore of each ring (fractions of the picture's half-diagonal): clear inside, soft edge outward. */
+const BORE = 0.42;
+const BORE_EDGE = 0.045;
+/** Depth fog: clear up to FOG_NEAR, gone into the dark at FOG_FAR. */
+const FOG_NEAR = 6;
+const FOG_FAR = 17;
+
+function fog(depth: number): number {
+  return 1 - smooth((depth - FOG_NEAR) / (FOG_FAR - FOG_NEAR));
+}
+
+/**
+ * How far along its path the camera is at `u` (0–1 of the intro). Its speed
+ * rises from rest over the first moment, holds, then eases away over a long
+ * landing, so it never jerks at either end and is moving almost at once.
+ */
+const GLIDE_TABLE = (() => {
+  const steps = 512;
+  const rise = 0.1;
+  const land = 0.4;
+  const speed = (u: number) =>
+    u < rise ? 0.5 - 0.5 * Math.cos((Math.PI * u) / rise) : u > 1 - land ? 0.5 + 0.5 * Math.cos((Math.PI * (u - (1 - land))) / land) : 1;
+  const table = new Float64Array(steps + 1);
+  for (let i = 1; i <= steps; i++) table[i] = table[i - 1] + (speed((i - 0.5) / steps) / steps);
+  for (let i = 0; i <= steps; i++) table[i] /= table[steps];
+  return table;
+})();
+
+function glide(u: number): number {
+  const x = (u <= 0 ? 0 : u >= 1 ? 1 : u) * (GLIDE_TABLE.length - 1);
+  const i = Math.min(GLIDE_TABLE.length - 2, Math.floor(x));
+  return GLIDE_TABLE[i] + (GLIDE_TABLE[i + 1] - GLIDE_TABLE[i]) * (x - i);
+}
+
+interface TunnelTextures {
+  /** The background, extended with mirrored copies on every side so rolled or offset rings never show an edge. */
+  padded: HTMLCanvasElement;
+  /** The same with the bore cut out of its centre. */
+  ring: HTMLCanvasElement;
+  /** Thumbnail pixels per texture pixel is 1 / scale. */
+  scale: number;
+  /** The background's average colour, as [r, g, b]: the haze deep in the tunnel. */
+  haze: [number, number, number];
+}
+
+const tunnelTextures = new WeakMap<IntroScene, TunnelTextures>();
+
+function texturesFor(world: IntroScene): TunnelTextures | null {
+  const cached = tunnelTextures.get(world);
+  if (cached) return cached;
+  const iw = world.width;
+  const ih = world.height;
+  // Twice the picture each way, capped: the rings are seen in motion and through haze, and the mouth draws the sharp original.
+  const scale = Math.min(1, 2560 / (2 * Math.max(iw, ih)));
+  const pw = Math.max(1, Math.round(2 * iw * scale));
+  const ph = Math.max(1, Math.round(2 * ih * scale));
+  const padded = document.createElement('canvas');
+  padded.width = pw;
+  padded.height = ph;
+  const pctx = padded.getContext('2d');
+  if (!pctx) return null;
+  pctx.imageSmoothingQuality = 'high';
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      pctx.setTransform(scale * (i ? -1 : 1), 0, 0, scale * (j ? -1 : 1), pw / 2 + i * iw * scale, ph / 2 + j * ih * scale);
+      pctx.drawImage(world.backdrop, -iw / 2, -ih / 2);
+    }
+  }
+  const ring = document.createElement('canvas');
+  ring.width = pw;
+  ring.height = ph;
+  const rctx = ring.getContext('2d');
+  if (!rctx) return null;
+  rctx.drawImage(padded, 0, 0);
+  const half = (Math.hypot(iw, ih) / 2) * scale;
+  rctx.globalCompositeOperation = 'destination-out';
+  rctx.fillStyle = boreGradient(rctx, pw / 2, ph / 2, BORE * half, (BORE + BORE_EDGE) * half);
+  rctx.fillRect(0, 0, pw, ph);
+  const dot = document.createElement('canvas');
+  dot.width = 1;
+  dot.height = 1;
+  const dctx = dot.getContext('2d', { willReadFrequently: true });
+  dctx?.drawImage(world.backdrop, 0, 0, 1, 1);
+  const px = dctx?.getImageData(0, 0, 1, 1).data;
+  const haze: [number, number, number] = px && px[3] > 0 ? [px[0], px[1], px[2]] : [0, 0, 0];
+  const textures = { padded, ring, scale, haze };
+  tunnelTextures.set(world, textures);
+  return textures;
+}
+
+/** Fully cut inside `inner`, easing to untouched at `outer`, for destination-out. */
+function boreGradient(ctx: CanvasRenderingContext2D, x: number, y: number, inner: number, outer: number): CanvasGradient {
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, Math.max(outer, 1e-3));
+  const k = Math.min(0.999, inner / Math.max(outer, 1e-3));
+  gradient.addColorStop(0, 'rgba(0,0,0,1)');
+  gradient.addColorStop(k, 'rgba(0,0,0,1)');
+  // A smooth shoulder rather than a straight ramp, so the edge has no visible band.
+  for (let i = 1; i <= 6; i++) {
+    const q = i / 6;
+    gradient.addColorStop(k + (1 - k) * q, `rgba(0,0,0,${(1 - smooth(q)).toFixed(4)})`);
+  }
+  return gradient;
+}
+
+/** Reused drawing surfaces: one for the mouth as it breaks open, one for a still of the arrangement. */
+let mouthCanvas: HTMLCanvasElement | null = null;
+let stillCanvas: HTMLCanvasElement | null = null;
+
+function surface(existing: HTMLCanvasElement | null, width: number, height: number): HTMLCanvasElement {
+  const canvas = existing ?? document.createElement('canvas');
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  return canvas;
+}
+
 /**
  * Fly through, in 3D. Every element of the thumbnail (each shard, spark,
- * ring, stroke, each line of the title) is placed at its own depth, and the
- * camera travels forward through them. At the first frame everything lines
- * up exactly into the thumbnail; as the camera moves, each element swells and
- * sweeps outward at a rate set by its depth, nearer ones first, so they part
- * around you like a cloud you are flying into. More copies of the elements
- * wait further in, turned round the centre and mirrored, so the way ahead
- * keeps filling like a tunnel. The camera sways and rolls a little, as a head
- * would. Elements are vectors, redrawn at their size on screen every frame,
- * so they stay sharp all the way to the lens; the backdrop sits far away and
- * dissolves into the arrangement.
+ * ring, stroke, each line of the title) stands at its own depth in front of
+ * the background, and at the first frame they all line up exactly into the
+ * thumbnail. Then the camera moves forward. The elements swell and part
+ * around it, nearer ones first; the background's centre breaks open into a
+ * tunnel whose walls are rings of that same background, each turned a little
+ * further, receding into the dark; more copies of the elements stream past
+ * along the bore. At the far end the live arrangement waits, small and lit,
+ * and grows as the camera glides out of the tunnel toward it, until it fills
+ * the frame exactly and the intro is simply over: nothing fades or cuts.
+ * Elements are vectors, redrawn at their size on screen every frame, so they
+ * stay sharp all the way to the lens.
  */
 function renderFlyThrough(ctx: CanvasRenderingContext2D, scene: Scene, intro: IntroSource, world: IntroScene): void {
   const t = clock(scene) - intro.start;
   const length = Math.max(2, scene.settings.introSeconds ?? 4);
-  const fade = Math.min(6, Math.max(2.5, length * 0.65));
   if (t >= length || t < 0) return;
-  const p = smooth((t - (length - fade)) / fade);
   const { W, H } = frame(scene);
   const iw = world.width;
   const ih = world.height;
-  const cover = Math.max(W / iw, H / ih);
-  const progress = t / length;
-  const size = cover * (1 + 0.04 * progress);
-  // Thumbnail pixels to the frame.
-  const F = new DOMMatrix().translate(W / 2 - (iw / 2) * size, H / 2 - (ih / 2) * size).scale(size);
+  const size = Math.max(W / iw, H / ih);
   const cx = W / 2;
   const cy = H / 2;
-
-  const n = world.elements.length;
-  const copies = n > 1800 ? 1 : n > 800 ? 2 : 3;
-  const gap = 2.2;
-  const deepest = 1.2 + 2.6 + 0.8 + (copies - 1) * gap;
-  // The camera is moving from the very first frame (no standing start, so
-  // playback opens straight into the flight) and gathers speed through the
-  // intro; the dissolve into the arrangement is timed by `p` at the end.
-  const u = Math.min(1, t / length);
-  const ease = u * (0.35 + 0.65 * u);
-  const camera = ease * (deepest + 0.2);
-  // A head's sway and roll, nothing at the start.
-  const sway = Math.sin(Math.PI * u);
-  const camX = W * 0.05 * sway * Math.sin(u * 4.2);
-  const camY = H * 0.035 * sway * Math.cos(u * 3.1);
-  const roll = 0.16 * sway * Math.sin(u * 2.3 + 0.4);
-  const cosR = Math.cos(roll);
-  const sinR = Math.sin(roll);
-  const ending = 1 - smooth((p - 0.86) / 0.14);
-  // The deeper copies only appear once the camera is on its way.
-  const deepIn = smooth((u - 0.06) * 5);
-  // Before playback the real thumbnail is shown; from the first frame of
-  // motion the separate elements take over in one clean cut (no crossfade:
-  // two near-identical pictures blended read as a smear). The scene is built
-  // to match the thumbnail, so the cut does not show.
-  const handover = t > 0 ? 1 : 0;
-  const drawFlat = (alpha: number) => {
-    if (alpha <= 0.002) return;
+  // Thumbnail pixels to the frame.
+  const F = new DOMMatrix().translate(cx - (iw / 2) * size, cy - (ih / 2) * size).scale(size);
+  const drawFlat = () => {
     ctx.save();
-    ctx.globalAlpha = alpha;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(world.flat, 0, 0, iw, ih, W / 2 - (iw / 2) * size, H / 2 - (ih / 2) * size, iw * size, ih * size);
+    ctx.drawImage(world.flat, 0, 0, iw, ih, cx - (iw / 2) * size, cy - (ih / 2) * size, iw * size, ih * size);
     ctx.restore();
   };
-  if (handover <= 0) {
-    drawFlat(1);
+  const textures = texturesFor(world);
+  // Before playback the real thumbnail is shown; once the clock runs the
+  // scene, built to match it, takes over in one clean cut.
+  if (t <= 0 || !textures) {
+    drawFlat();
     return;
   }
 
-  ctx.save();
-  // The far end: the backdrop, barely moving, dissolving into the arrangement.
-  const baseAlpha = 1 - p;
-  if (baseAlpha > 0.002) {
-    const zb = 9;
-    const fb = zb / Math.max(zb - camera, 0.5);
-    ctx.globalAlpha = baseAlpha;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.translate(cx, cy);
-    ctx.rotate(roll * 0.3);
-    ctx.scale(fb, fb);
-    ctx.translate(-cx, -cy);
-    ctx.drawImage(world.backdrop, 0, 0, iw, ih, W / 2 - (iw / 2) * size, H / 2 - (ih / 2) * size, iw * size, ih * size);
-  }
-  ctx.restore();
+  const u = t / length;
+  const ease = glide(u);
+  const camera = ease * CAM_END;
+  // A head's sway and roll, nothing at either end, so start and landing line up exactly.
+  const sway = Math.sin(Math.PI * u);
+  const camX = W * 0.14 * sway * Math.sin(u * 4.2 + 0.3);
+  const camY = H * 0.1 * sway * Math.cos(u * 3.1);
+  // The roll settles well before the landing, so the arrangement arrives level.
+  const roll = 0.12 * sway * sway * Math.sin(u * 2.3 + 0.4);
+  const cosR = Math.cos(roll);
+  const sinR = Math.sin(roll);
+  /** A point `X` (real lateral offset from the axis) at `depth` to the frame, through the camera's offset and roll. */
+  const project = (X: number, Y: number, depth: number) => {
+    const rx = (X - camX) / depth;
+    const ry = (Y - camY) / depth;
+    return { x: cx + rx * cosR - ry * sinR, y: cy + rx * sinR + ry * cosR };
+  };
 
   // Affine transforms as [a, b, c, d, e, f], composed by hand: thousands of
   // elements a frame, so no matrix objects in the loop.
@@ -590,9 +693,135 @@ function renderFlyThrough(ctx: CanvasRenderingContext2D, scene: Scene, intro: In
   const aff = (m: DOMMatrix) => [m.a, m.b, m.c, m.d, m.e, m.f];
   const rootT = aff(ctx.getTransform());
   const Fa = aff(F);
+  const device = ctx.canvas as HTMLCanvasElement;
 
-  type Item = { depth: number; element: (typeof world.elements)[number]; M: number[]; alpha: number };
+  // The arrangement is already drawn beneath: keep a still of it to place at the far end.
+  const still = surface(stillCanvas, device.width, device.height);
+  stillCanvas = still;
+  const sctx = still.getContext('2d');
+  if (!sctx) return;
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.clearRect(0, 0, still.width, still.height);
+  sctx.drawImage(device, 0, 0);
+
+  type Item = { depth: number; draw: () => void };
   const items: Item[] = [];
+  const halfDiag = Math.hypot(W, H) / 2;
+  const pictureHalfDiag = Math.hypot(iw, ih) / 2;
+
+  // The arrangement at the end of the tunnel, exactly filling the frame when the camera lands.
+  {
+    const depth = Z_PORTAL - camera;
+    // Solid, never hazed (a hazed dark screen reads as a grey card). It opens
+    // out of the far end as a widening round window instead of fading up.
+    const alpha = 1;
+    const iris = smooth((u - 0.08) / 0.3);
+    {
+      const s = (Z_PORTAL - CAM_END) / depth;
+      const at = project(0, 0, depth);
+      items.push({
+        depth,
+        draw: () => {
+          ctx.setTransform(rootT[0], rootT[1], rootT[2], rootT[3], rootT[4], rootT[5]);
+          if (iris <= 0.001) return;
+          ctx.globalAlpha = alpha;
+          ctx.translate(at.x, at.y);
+          ctx.rotate(roll);
+          ctx.scale(s, s);
+          if (iris < 1) {
+            ctx.beginPath();
+            ctx.arc(0, 0, halfDiag * 1.02 * iris, 0, Math.PI * 2);
+            ctx.clip();
+          }
+          ctx.drawImage(still, -W / 2, -H / 2, W, H);
+        },
+      });
+    }
+  }
+
+  // The rings of the background: the mouth first, breaking open, then the bore.
+  const open = smooth((u - 0.02) / 0.3);
+  // Each ring is only seen through the bore of the ring in front of it, so it
+  // is clipped to that circle: most of a near ring is hidden, and drawing only
+  // what shows keeps the tunnel cheap.
+  let window: { x: number; y: number; r: number } | null = null;
+  let hidden = false;
+  for (let k = 0; ; k++) {
+    const z = Z_MOUTH + k * RING_GAP;
+    if (z > RING_LAST) break;
+    const depth = z - camera;
+    if (depth <= 0.02) continue;
+    const f = Z_MOUTH / depth;
+    // Once its bore is wider than the frame, a ring has passed out of view.
+    const bore = k === 0 ? BORE * open : BORE;
+    if (bore * f * size * pictureHalfDiag > halfDiag * 1.02) continue;
+    // Behind a mouth that has not opened yet, nothing shows.
+    if (hidden) break;
+    const at = project(0, 0, depth);
+    const clip = window;
+    window = { x: at.x, y: at.y, r: (bore + BORE_EDGE) * f * size * pictureHalfDiag * 1.01 };
+    if (k === 0 && open <= 0.001) hidden = true;
+    const alpha = k === 0 ? 1 : fog(depth);
+    if (alpha <= 0.004) continue;
+    const turn = k * 0.16;
+    const mirror = k % 2 ? -1 : 1;
+    items.push({
+      depth,
+      draw: () => {
+        const place = (target: CanvasRenderingContext2D) => {
+          target.setTransform(rootT[0], rootT[1], rootT[2], rootT[3], rootT[4], rootT[5]);
+          target.translate(at.x, at.y);
+          target.rotate(roll + turn);
+          target.scale(size * f * mirror, size * f);
+        };
+        if (k > 0) {
+          if (clip) {
+            ctx.setTransform(rootT[0], rootT[1], rootT[2], rootT[3], rootT[4], rootT[5]);
+            ctx.beginPath();
+            ctx.arc(clip.x, clip.y, clip.r, 0, Math.PI * 2);
+            ctx.clip();
+          }
+          place(ctx);
+          ctx.globalAlpha = alpha;
+          ctx.scale(1 / textures.scale, 1 / textures.scale);
+          ctx.drawImage(textures.ring, -textures.ring.width / 2, -textures.ring.height / 2);
+          return;
+        }
+        // The mouth: the picture's own background, sharp, with the bore opening in its centre.
+        const mouth = surface(mouthCanvas, device.width, device.height);
+        mouthCanvas = mouth;
+        const mctx = mouth.getContext('2d');
+        if (!mctx) return;
+        mctx.setTransform(1, 0, 0, 1, 0, 0);
+        mctx.globalCompositeOperation = 'source-over';
+        mctx.clearRect(0, 0, mouth.width, mouth.height);
+        mctx.imageSmoothingQuality = 'high';
+        place(mctx);
+        mctx.save();
+        mctx.scale(1 / textures.scale, 1 / textures.scale);
+        mctx.drawImage(textures.padded, -textures.padded.width / 2, -textures.padded.height / 2);
+        mctx.restore();
+        mctx.drawImage(world.backdrop, -iw / 2, -ih / 2);
+        if (open > 0.001) {
+          mctx.globalCompositeOperation = 'destination-out';
+          mctx.fillStyle = boreGradient(mctx, 0, 0, bore * pictureHalfDiag, (bore + BORE_EDGE * open) * pictureHalfDiag);
+          mctx.fillRect(-iw, -ih, iw * 2, ih * 2);
+          mctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.drawImage(mouth, 0, 0);
+      },
+    });
+  }
+
+  // The elements: each where it stands in the thumbnail, and deeper copies along the bore.
+  const n = world.elements.length;
+  const copies = n > 1800 ? 1 : n > 800 ? 2 : 3;
+  // Deeper copies wait behind the mouth, and all of them pass the lens before the camera lands.
+  const deepFrom = Z_MOUTH + 0.25;
+  const deepTo = CAM_END - 0.8;
+  const deepStep = copies > 1 ? (deepTo - deepFrom) / (copies - 1) : 0;
   world.elements.forEach((element, index) => {
     // Lower layers sit deeper; the title passes last.
     const rank = n > 1 ? index / (n - 1) : 1;
@@ -602,34 +831,34 @@ function renderFlyThrough(ctx: CanvasRenderingContext2D, scene: Scene, intro: In
     const sizeOnFrame = element.size * size;
     for (let k = 0; k < copies; k++) {
       if (k > 0 && element.title) break;
-      const z = z0 + k * gap;
+      const z = k === 0 ? z0 : deepFrom + (k - 1 + hash01(index, 7 + k)) * deepStep;
       const depth = z - camera;
       if (depth <= 0.04) continue;
-      let alpha = smooth((depth - 0.04) / 0.28) * ending;
-      if (k > 0) alpha *= deepIn * smooth((9 - depth) / 3);
+      // Fade only in the last moment before the lens, and into the fog far down the bore.
+      const alpha = smooth((depth - 0.03) / 0.14) * fog(depth);
       if (alpha <= 0.004) continue;
-      const f = z / depth;
-      // Copies further in are turned round the centre, every other one mirrored.
-      const turn = k * 2.399 + (k ? (hash01(index, 3) - 0.5) * 0.6 : 0);
+      // Real size stays the element's own; it looks smaller only because it is further away.
+      const f = z0 / depth;
+      // Copies further in are turned round the axis, every other one mirrored, and set out toward the walls.
+      const turn = k ? k * 2.399 + (hash01(index, 3) - 0.5) * 0.8 : 0;
       const mirror = k % 2 ? -1 : 1;
       let ox = (ex - cx) * mirror;
       let oy = ey - cy;
       if (k) {
         const c = Math.cos(turn);
         const sn = Math.sin(turn);
-        [ox, oy] = [ox * c - oy * sn, ox * sn + oy * c];
+        [ox, oy] = [(ox * c - oy * sn) * 1.25, (ox * sn + oy * c) * 1.25];
       }
-      // Into the camera's view: offset by its sway, turned by its roll, then perspective.
-      const rx = ox - camX * (1 - 1 / z);
-      const ry = oy - camY * (1 - 1 / z);
-      // The title grows toward the camera but drifts outward much less, so it
-      // stays in view until it rushes past at the very end.
-      const spread = element.title ? Math.pow(f, 0.3) : f;
-      const sx = cx + (rx * cosR - ry * sinR) * spread;
-      const sy = cy + (rx * sinR + ry * cosR) * spread;
+      // The title grows toward the camera but drifts outward a little less,
+      // so it stays in view longer, yet still sweeps off the frame rather than
+      // fading through the lens.
+      const spread = element.title ? Math.pow(f, 0.7) / f : 1;
+      const at = project(ox * z0 * spread, oy * z0 * spread, depth);
+      const sx = at.x;
+      const sy = at.y;
       const onScreen = sizeOnFrame * f;
       if (sx + onScreen < -W * 0.1 || sx - onScreen > W * 1.1 || sy + onScreen < -H * 0.1 || sy - onScreen > H * 1.1) continue;
-      const spin = roll + (k ? turn : 0) + (hash01(index, 5) - 0.5) * 0.5 * ease;
+      const spin = roll + turn + (hash01(index, 5) - 0.5) * 0.6 * ease;
       const cs = Math.cos(spin);
       const ss = Math.sin(spin);
       // translate(sx, sy) · rotate(spin) · scale(f·mirror, f) · translate(−ex, −ey)
@@ -638,33 +867,43 @@ function renderFlyThrough(ctx: CanvasRenderingContext2D, scene: Scene, intro: In
       const c2 = -ss * f;
       const d = cs * f;
       const M = [a, b, c2, d, sx - (a * ex + c2 * ey), sy - (b * ex + d * ey)];
-      items.push({ depth, element, M, alpha });
+      items.push({
+        depth,
+        draw: () => {
+          // Element space → thumbnail pixels → frame → camera → device.
+          const toFrame = mul(Fa, aff(element.base));
+          const full = mul(rootT, mul(M, toFrame));
+          const vector = element.vector;
+          if (vector?.local) {
+            drawSimple(ctx, vector, mul(full, aff(vector.m)), alpha);
+          } else if (vector) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            replayElement(ctx, vector, new DOMMatrix(mul(M, toFrame)).preMultiplySelf(new DOMMatrix(rootT)), alpha);
+          } else if (element.image) {
+            ctx.setTransform(full[0], full[1], full[2], full[3], full[4], full[5]);
+            ctx.globalAlpha = alpha;
+            ctx.drawImage(element.image, 0, 0);
+          }
+        },
+      });
     }
   });
-  // Far to near, so nearer elements pass in front.
-  items.sort((a, b) => b.depth - a.depth);
+
   ctx.save();
+  // The haze the tunnel recedes into: the picture's own colour, so far rings melt into it.
+  ctx.fillStyle = `rgb(${textures.haze.join(', ')})`;
+  ctx.fillRect(0, 0, W, H);
   ctx.shadowBlur = 0;
   ctx.shadowColor = 'rgba(0, 0, 0, 0)';
   ctx.filter = 'none';
   ctx.globalCompositeOperation = 'source-over';
   ctx.imageSmoothingQuality = 'high';
-  for (const { element, M, alpha } of items) {
-    // Element space → thumbnail pixels → frame → camera → device.
-    const toFrame = mul(Fa, aff(element.base));
-    const full = mul(rootT, mul(M, toFrame));
-    const vector = element.vector;
-    if (vector?.local) {
-      drawSimple(ctx, vector, mul(full, aff(vector.m)), alpha);
-    } else if (vector) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      replayElement(ctx, vector, new DOMMatrix(mul(M, toFrame)).preMultiplySelf(new DOMMatrix(rootT)), alpha);
-    } else if (element.image) {
-      ctx.setTransform(full[0], full[1], full[2], full[3], full[4], full[5]);
-      ctx.globalAlpha = alpha;
-      ctx.drawImage(element.image, 0, 0);
-    }
+  // Far to near, so nearer things pass in front.
+  items.sort((a, b) => b.depth - a.depth);
+  for (const item of items) {
+    ctx.save();
+    item.draw();
+    ctx.restore();
   }
   ctx.restore();
-  drawFlat(1 - handover);
 }

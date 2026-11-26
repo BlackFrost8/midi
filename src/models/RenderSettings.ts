@@ -304,7 +304,7 @@ export const INTRO_MOTIONS: Array<{ value: IntroMotion; label: string; hint: str
   { value: 'scatter', label: 'Scatter', hint: 'Each element flies outward, away from the centre' },
   { value: 'slide', label: 'Slide away', hint: 'Elements slide off to the nearer side, one after another' },
   { value: 'fall', label: 'Fall', hint: 'Elements drop out of the frame, one after another' },
-  { value: 'rush', label: 'Fly through', hint: 'Elements rush past the camera, the nearest fastest' },
+  { value: 'rush', label: 'Fly through', hint: 'Tunnel through the thumbnail, its elements streaming past, into the arrangement' },
 ];
 
 export interface ExportSettings {
