@@ -138,8 +138,8 @@ export interface RenderSettings {
   titleText: string;
   /** A title card that fades in over the start of the video. */
   introCard: boolean;
-  /** The intro shows the song title, or the thumbnail, which then fades into the arrangement. */
-  introStyle: 'title' | 'thumbnail';
+  /** The intro shows the song title, the thumbnail (which then fades into the arrangement), or the title over the thumbnail. */
+  introStyle: 'title' | 'thumbnail' | 'both';
   /** How the thumbnail's elements leave as it fades into the arrangement. */
   introMotion: IntroMotion;
   introSeconds: number;

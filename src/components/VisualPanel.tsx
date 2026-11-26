@@ -490,11 +490,12 @@ export const VisualPanel = memo(function VisualPanel({
             options={[
               { value: 'title', label: 'Title card' },
               { value: 'thumbnail', label: 'Thumbnail' },
+              { value: 'both', label: 'Thumbnail + title card' },
             ]}
             onChange={(introStyle) => onSettings({ introStyle: introStyle as RenderSettings['introStyle'] })}
           />
         )}
-        {settings.introCard && settings.introStyle === 'thumbnail' && (
+        {settings.introCard && (settings.introStyle === 'thumbnail' || settings.introStyle === 'both') && (
           <>
             <Slider
               label="Intro length"
@@ -533,6 +534,10 @@ export const VisualPanel = memo(function VisualPanel({
                 onChange={(event) => onSettings({ introSubtitle: event.target.value })}
               />
             </Field>
+            {settings.introStyle === 'both' ? (
+              <p className="hint">The title card shows over the thumbnail at the same time, and fades away as the thumbnail dissolves into the arrangement.</p>
+            ) : (
+            <>
             <Slider
               label="Intro length"
               min={2}
@@ -543,6 +548,8 @@ export const VisualPanel = memo(function VisualPanel({
               onChange={(introSeconds) => onSettings({ introSeconds })}
             />
             <p className="hint">The title fades in over the opening, then fades away as the music gets going.</p>
+            </>
+            )}
           </>
         )}
         <Toggle label="End card" checked={settings.outroCard ?? false} onChange={(outroCard) => onSettings({ outroCard })} />

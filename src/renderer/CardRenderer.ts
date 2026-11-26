@@ -63,8 +63,11 @@ function smooth(x: number): number {
 
 export function renderCards(ctx: CanvasRenderingContext2D, scene: Scene): void {
   if (scene.settings.introCard) {
-    if (scene.settings.introStyle === 'thumbnail' && scene.intro?.image) renderThumbnailIntro(ctx, scene, scene.intro);
-    else renderIntro(ctx, scene);
+    const style = scene.settings.introStyle ?? 'title';
+    const thumb = (style === 'thumbnail' || style === 'both') && scene.intro?.image;
+    if (thumb) renderThumbnailIntro(ctx, scene, scene.intro!);
+    // Both: the title card over the thumbnail, at the same time.
+    if (!thumb || style === 'both') renderIntro(ctx, scene, Boolean(thumb));
   }
   if (scene.settings.outroCard) renderOutro(ctx, scene);
 }
@@ -83,13 +86,17 @@ function titleOf(scene: Scene): string {
  * The song's title fades up over a darkened picture at the start, holds, and
  * dissolves as the music gets going, rising slightly as it comes in.
  */
-function renderIntro(ctx: CanvasRenderingContext2D, scene: Scene): void {
+function renderIntro(ctx: CanvasRenderingContext2D, scene: Scene, overThumbnail = false): void {
   // Timed from the start of the video, which is before 0 when a recording leads in.
   const t = clock(scene) - (scene.intro?.start ?? 0);
   const length = Math.max(2, scene.settings.introSeconds ?? 4);
   if (t >= length || t < 0) return;
   const fadeIn = smooth(t / Math.min(1.2, length * 0.3));
-  const fadeOut = 1 - smooth((t - (length - 1.4)) / 1.4);
+  // Over the thumbnail, the title leaves early in the thumbnail's own dissolve, so it is gone before the arrangement arrives.
+  const thumbFade = Math.min(6, Math.max(2.5, length * 0.65));
+  const fadeOut = overThumbnail
+    ? 1 - smooth((t - (length - thumbFade)) / (thumbFade * 0.6))
+    : 1 - smooth((t - (length - 1.4)) / 1.4);
   const alpha = Math.min(fadeIn, fadeOut);
   if (alpha <= 0.002) return;
   const title = titleOf(scene);
@@ -99,7 +106,8 @@ function renderIntro(ctx: CanvasRenderingContext2D, scene: Scene): void {
 
   ctx.save();
   // A scrim, so the title reads over a busy opening.
-  ctx.globalAlpha = alpha * 0.62;
+  // Lighter over the thumbnail, so the picture still shows through.
+  ctx.globalAlpha = alpha * (overThumbnail ? 0.3 : 0.62);
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, W, H);
 

@@ -1206,7 +1206,7 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
   }, [fitView, handlePlayPause, handleReturnToStart, seekTo]);
 
   // ---- Thumbnail intro ----
-  const wantsThumbIntro = settings.introCard && settings.introStyle === 'thumbnail';
+  const wantsThumbIntro = settings.introCard && (settings.introStyle === 'thumbnail' || settings.introStyle === 'both');
   const introThumbRef = useRef<IntroLayers | null>(null);
   const introSceneRef = useRef<IntroScene | null>(null);
   const wantsFlyThrough = wantsThumbIntro && (settings.introMotion ?? 'dissolve') === 'rush';
