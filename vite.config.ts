@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { storePlugin } from './vite-store';
 
 export default defineConfig({
+  // Relative asset paths, so the build runs from any folder — including a
+  // GitHub Pages project site at /<repo>/.
+  base: './',
   // The store saves songs into ./saved, so every browser shares them.
   plugins: [react(), storePlugin(fileURLToPath(new URL('.', import.meta.url)))],
   server: {
