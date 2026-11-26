@@ -165,6 +165,46 @@ export class AudioEngine {
     this.lowpass?.frequency.setTargetAtTime(mix.focus ? mix.focus.high : 22000, at, 0.05);
   }
 
+  /**
+   * The audio as currently mixed — the recording at its level and focus, and
+   * every stem at its level — rendered offline into one buffer, for the MP4
+   * export. With no stems and nothing soloed this is the recording itself.
+   */
+  async renderMix(): Promise<AudioBuffer | null> {
+    const main = this.audio?.buffer;
+    if (!main) return null;
+    const mix = this.mix;
+    const untouched = mix.mix >= 0.999 && !mix.focus && ![...mix.stems.values()].some((level) => level > 0.001);
+    if (untouched) return main;
+    const length = Math.max(main.length, ...[...this.stems.values()].map((stem) => stem.buffer.length));
+    const offline = new OfflineAudioContext(Math.max(2, main.numberOfChannels), length, main.sampleRate);
+    const play = (buffer: AudioBuffer, level: number, chain: AudioNode) => {
+      if (level <= 0.001) return;
+      const source = offline.createBufferSource();
+      source.buffer = buffer;
+      const gain = offline.createGain();
+      gain.gain.value = level;
+      source.connect(gain);
+      gain.connect(chain);
+      source.start(0);
+    };
+    let recordingOut: AudioNode = offline.destination;
+    if (mix.focus) {
+      const low = offline.createBiquadFilter();
+      low.type = 'highpass';
+      low.frequency.value = mix.focus.low;
+      const high = offline.createBiquadFilter();
+      high.type = 'lowpass';
+      high.frequency.value = mix.focus.high;
+      low.connect(high);
+      high.connect(offline.destination);
+      recordingOut = low;
+    }
+    play(main, mix.mix, recordingOut);
+    for (const [id, stem] of this.stems) play(stem.buffer, mix.stems.get(id) ?? 0, offline.destination);
+    return offline.startRendering();
+  }
+
   /** Where in the files playback is now (ignoring output latency). */
   private currentAudioPosition(): number {
     if (!this.ctx) return 0;

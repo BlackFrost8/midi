@@ -452,7 +452,8 @@ whose name it matches ("02 Grand Piano.wav" → Grand Piano); the **+** on a tra
   fallback: it filters the recording to the soloed part's range of notes, which brings it forward
   but keeps anything else playing in that range. Drum tracks are not focused.
 
-Stems are saved with the song. Exports use the full recording.
+Stems are saved with the song. The MP4 export carries the audio exactly as you hear it: stems at
+their levels, soloed or muted, and the solo focus, mixed down when you export.
 
 Drop your mixdown anywhere in the window — WAV, MP3, M4A, OGG or FLAC — and it loads into the
 **Audio** tab. Once it is playing, it becomes the clock the whole app runs on: the playhead reads
