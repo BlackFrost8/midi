@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.captures/
+*.local
+.DS_Store
+# Your songs, recordings and looks (saved by the app's server): private, not source.
+saved/
+# Local tool settings and build leftovers.
+.claude/
+tsconfig.tsbuildinfo
+public/synctest/
+# Personal prompt log (contains local file paths).
+PROMPTS.md
