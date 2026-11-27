@@ -145,6 +145,9 @@ export interface RenderSettings {
   introSeconds: number;
   /** Second line on the intro card (the artist, the series…). */
   introSubtitle: string;
+  /** Set only while exporting a Short: the hook caption, and the time it appears (seconds). */
+  shortsCaption?: string;
+  shortsStart?: number;
   /** An end card that fades the picture to black after the music ends. */
   outroCard: boolean;
   outroSeconds: number;
@@ -324,6 +327,10 @@ export interface ExportSettings {
   /** Video export range in seconds; null means the full song. */
   rangeStart: number | null;
   rangeEnd: number | null;
+  /** YouTube Short: length in seconds, hook caption, and start (null: the strongest moment, found automatically). */
+  shortsSeconds?: number;
+  shortsCaption?: string;
+  shortsStart?: number | null;
 }
 
 export const EXPORT_PRESETS: Array<{ label: string; width: number; height: number }> = [

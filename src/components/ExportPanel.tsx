@@ -6,7 +6,7 @@ import { formatSeconds } from '../utils/formatting';
 import { ffmpegCommand, supportedVideoMimeType, supportsFrameSequence } from '../export/VideoExporter';
 import { evenDimensions, supportsMp4 } from '../export/Mp4Exporter';
 import { SVG_NOTE_WARNING_THRESHOLD } from '../export/SvgExporter';
-import { Field, Section, Toggle } from './controls';
+import { Field, Section, Slider, Toggle } from './controls';
 import type { ThumbnailExportSize } from './ThumbnailPanel';
 
 interface Props {
@@ -25,6 +25,13 @@ interface Props {
   onExportFrames: () => void;
   /** Saves the thumbnail from the Thumbnail tab; absent until it is ready. */
   onExportThumbnail?: (size: ThumbnailExportSize) => void;
+  /** Where the Short starts: your choice, or the strongest moment found automatically. */
+  shortsStart: number;
+  onExportShort: () => void;
+  /** Plays the song from the Short's start, to hear the hook. */
+  onPreviewShort: () => void;
+  /** The playhead, to start the Short where you are. */
+  position: number;
   onCancel: () => void;
 }
 
@@ -231,6 +238,50 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
         )}
         <p className="hint" style={{ userSelect: 'text' }}>
           <code>{ffmpegCommand('frame', settings.fps, digits)}</code>
+        </p>
+      </Section>
+
+      <Section title="YouTube Short">
+        <Slider
+          label="Length"
+          min={15}
+          max={60}
+          step={5}
+          value={settings.shortsSeconds ?? 30}
+          format={(value) => `${value}s`}
+          onChange={(shortsSeconds) => onExportSettings({ shortsSeconds })}
+        />
+        <Field label="Hook caption">
+          <input
+            className="text-input"
+            value={settings.shortsCaption ?? ''}
+            placeholder={`e.g. Wait for it… (empty: ${(project.title || 'song title').slice(0, 24)})`}
+            onChange={(event) => onExportSettings({ shortsCaption: event.target.value })}
+          />
+        </Field>
+        <div className="field-row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="hint" style={{ margin: 0 }}>
+            Starts at {formatSeconds(props.shortsStart)}
+            {settings.shortsStart == null ? ' (strongest moment)' : ''}
+          </span>
+          <button className="btn" disabled={props.busy} onClick={props.onPreviewShort}>
+            Hear it
+          </button>
+          <button className="btn" disabled={props.busy} onClick={() => onExportSettings({ shortsStart: props.position })}>
+            Start at playhead
+          </button>
+          {settings.shortsStart != null && (
+            <button className="btn" disabled={props.busy} onClick={() => onExportSettings({ shortsStart: null })}>
+              Auto
+            </button>
+          )}
+        </div>
+        <button className="btn primary" disabled={props.busy || !mp4Supported} onClick={props.onExportShort}>
+          Export Short (MP4)
+        </button>
+        <p className="hint">
+          Vertical 1080×1920 with sound, starting right on the hardest-hitting part of the song with the caption popping up
+          over the first seconds, so it grabs viewers from the first frame. No intro or end card, so it loops cleanly.
         </p>
       </Section>
 

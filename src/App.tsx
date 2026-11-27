@@ -17,6 +17,8 @@ import { downloadBlob, renderPng, sanitizeFileName } from './export/ImageExporte
 import { renderSvg } from './export/SvgExporter';
 import { exportFrameSequence, recordWebm } from './export/VideoExporter';
 import { evenDimensions, recordMp4 } from './export/Mp4Exporter';
+import { findHook, SHORTS_SIZE } from './export/ShortsHook';
+import { calculateLayout } from './layout/LayoutEngine';
 import type { LayoutResult, Viewport } from './layout/LayoutEngine';
 import { domainForTimelineMode, projectDuration } from './layout/LayoutEngine';
 import { analyzeProject } from './midi/MidiAnalyzer';
@@ -1390,6 +1392,71 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
     videoRange,
   ]);
 
+  // The Short: its length, and where it starts (your choice, or the strongest moment).
+  const shortsSeconds = exportSettings.shortsSeconds ?? 30;
+  const autoHook = useMemo(
+    () => (project ? findHook(project, shortsSeconds, trackStates) : 0),
+    [project, shortsSeconds, trackStates],
+  );
+  const shortsStart = project
+    ? clamp(exportSettings.shortsStart ?? autoHook, 0, Math.max(0, project.durationSeconds - 1))
+    : 0;
+
+  const handlePreviewShort = useCallback(() => {
+    seekTo(shortsStart);
+    if (!playing) handlePlayPause();
+  }, [handlePlayPause, playing, seekTo, shortsStart]);
+
+  const handleExportShort = useCallback(() => {
+    if (!project) return;
+    const { width, height } = SHORTS_SIZE;
+    const start = shortsStart;
+    const end = Math.min(start + shortsSeconds, Math.max(timeline.end, start + 1));
+    const caption = (exportSettings.shortsCaption ?? '').trim() || (settings.titleText || project.title || '').trim();
+    // Follow the playhead, with no cards: the Short opens straight on the music and loops cleanly.
+    const shortSettings = {
+      ...settings,
+      introCard: false,
+      outroCard: false,
+      followMode: 'continuous' as const,
+      followAnchor: 0.4,
+      shortsCaption: caption,
+      shortsStart: start,
+    };
+    // About eight seconds across the narrow frame, so the notes have room.
+    const probe = { width, height, pixelRatio: 1, pxPerUnit: 1, scrollUnits: 0, scrollY: 0 };
+    const layout = calculateLayout({ project, settings: shortSettings, trackStates, viewport: probe });
+    const spanUnits = layout.domain === 'beats' ? mapper.secondsToBeats(start + 8) - mapper.secondsToBeats(start) : 8;
+    const sourceViewport = { ...probe, pxPerUnit: layout.contentWidth / Math.max(spanUnits, 1e-3) };
+    void runExport('Encoding Short…', async (signal, report) => {
+      const engine = audioRef.current;
+      const buffer = !engine
+        ? null
+        : typeof engine.renderMix === 'function'
+          ? await engine.renderMix()
+          : (engine.audio?.buffer ?? null);
+      const blob = await recordMp4({
+        project,
+        settings: shortSettings,
+        trackStates,
+        width,
+        height,
+        fitWholeArrangement: false,
+        sourceViewport,
+        mapper,
+        fps: exportSettings.fps,
+        bitrateMbps: Math.max(12, Math.min(exportSettings.bitrateMbps, 30)),
+        startSeconds: start,
+        endSeconds: end,
+        followAnchor: 0.4,
+        audio: buffer ? { buffer, offset: audioOffset } : null,
+        onProgress: report,
+        signal,
+      });
+      downloadBlob(blob, `${sanitizeFileName(fileName)}_short.mp4`);
+    });
+  }, [audioOffset, exportSettings, fileName, mapper, project, runExport, settings, shortsSeconds, shortsStart, timeline.end, trackStates]);
+
   const handleExportFrames = useCallback(() => {
     const base = exportBase();
     if (!base) return;
@@ -1961,6 +2028,10 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
               onExportMp4={handleExportMp4}
               onExportFrames={handleExportFrames}
               onExportThumbnail={thumbDesign ? handleExportThumbnail : undefined}
+              shortsStart={shortsStart}
+              onExportShort={handleExportShort}
+              onPreviewShort={handlePreviewShort}
+              position={position}
               onCancel={() => abortRef.current?.abort()}
             />
           )}

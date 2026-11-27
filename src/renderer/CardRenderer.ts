@@ -70,6 +70,74 @@ export function renderCards(ctx: CanvasRenderingContext2D, scene: Scene): void {
     if (!thumb || style === 'both') renderIntro(ctx, scene, Boolean(thumb));
   }
   if (scene.settings.outroCard) renderOutro(ctx, scene);
+  if (scene.settings.shortsCaption) renderShortsCaption(ctx, scene, scene.settings.shortsCaption);
+}
+
+/**
+ * A Short's hook: a big, bold caption that pops in on the very first frame
+ * (scaled up past full size and settling, so it reads as motion even before
+ * the music registers), holds while the strongest part of the song plays,
+ * and gets out of the way after a few seconds. It sits in the upper part of
+ * the frame, clear of the Shorts player's buttons and description.
+ */
+function renderShortsCaption(ctx: CanvasRenderingContext2D, scene: Scene, caption: string): void {
+  const t = clock(scene) - (scene.settings.shortsStart ?? 0);
+  const hold = 3.2;
+  if (t < 0 || t > hold) return;
+  const { W, H } = frame(scene);
+  // Pop: overshoot, then settle (an elastic ease over the first 0.45s).
+  const q = Math.min(1, t / 0.45);
+  const pop = q >= 1 ? 1 : 1 - Math.pow(2, -9 * q) * Math.cos(q * Math.PI * 2.6) * (1 - q * 0.2);
+  const scale = 0.55 + 0.45 * pop;
+  const alpha = Math.min(1, t / 0.06) * (1 - smooth((t - (hold - 0.45)) / 0.45));
+  if (alpha <= 0.002) return;
+
+  ctx.save();
+  let size = Math.min(W * 0.1, H * 0.06);
+  const maxWidth = W * 0.84;
+  const font = (px: number) => `800 ${px}px ${FONT_STACK}`;
+  const wrap = (px: number) => {
+    ctx.font = font(px);
+    const words = caption.toUpperCase().split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  let lines = wrap(size);
+  while ((lines.length > 3 || lines.some((line) => ctx.measureText(line).width > maxWidth)) && size > W * 0.04) {
+    size *= 0.92;
+    lines = wrap(size);
+  }
+  const lineHeight = size * 1.12;
+  ctx.translate(W / 2, H * 0.2);
+  ctx.scale(scale, scale);
+  ctx.rotate((1 - pop) * -0.06);
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  const top = -((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, i) => {
+    const y = top + i * lineHeight;
+    // A thick dark outline, so it reads over anything.
+    ctx.lineWidth = size * 0.2;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.strokeText(line, 0, y);
+    ctx.shadowColor = withAlpha(scene.settings.accentColor, 0.8);
+    ctx.shadowBlur = size * 0.5;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(line, 0, y);
+    ctx.shadowBlur = 0;
+  });
+  ctx.restore();
 }
 
 function frame(scene: Scene) {

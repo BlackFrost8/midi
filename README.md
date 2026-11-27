@@ -455,6 +455,12 @@ whose name it matches ("02 Grand Piano.wav" → Grand Piano); the **+** on a tra
 Stems are saved with the song. The MP4 export carries the audio exactly as you hear it: stems at
 their levels, soloed or muted, and the solo focus, mixed down when you export.
 
+**YouTube Short** (Export tab) makes a vertical 1080×1920 MP4 of 15–60 seconds with sound. It
+starts on the downbeat where the song hits hardest (found from note density, velocity and jumps
+in energy, ignoring muted tracks), with your hook caption popping up over the first seconds. It
+has no intro or end card, so it loops cleanly. **Hear it** plays from the chosen start;
+**Start at playhead** overrides it, and **Auto** goes back to the automatic start.
+
 Drop your mixdown anywhere in the window — WAV, MP3, M4A, OGG or FLAC — and it loads into the
 **Audio** tab. Once it is playing, it becomes the clock the whole app runs on: the playhead reads
 the audio position every frame instead of integrating its own, so the picture cannot drift away
