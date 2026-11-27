@@ -35,6 +35,8 @@ interface Props {
   position: number;
   /** Fills the pop-up texts with suggestions timed to the music. */
   onAutoCues: () => void;
+  /** Opens the live vertical preview of the Short. */
+  onOpenShortPreview: () => void;
   onCancel: () => void;
 }
 
@@ -272,7 +274,8 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
           y={settings.shortsCaptionY ?? 0.3}
           onChange={(shortsCaptionX, shortsCaptionY) => onExportSettings({ shortsCaptionX, shortsCaptionY })}
         />
-        <Field label="Pop-up texts">
+        <div className="cue-list">
+          <label>Pop-up texts</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
             {(settings.shortsCues ?? []).map((cue, i) => {
               const cues = settings.shortsCues ?? [];
@@ -291,8 +294,14 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
                     value={cue.at}
                     onChange={(event) => set({ at: Math.max(0, Number(event.target.value) || 0) })}
                   />
-                  <input className="text-input" value={cue.text} placeholder="Wait for it…" onChange={(event) => set({ text: event.target.value })} />
-                  <button className="mini-btn" title="Remove" onClick={() => onExportSettings({ shortsCues: cues.filter((_, j) => j !== i) })}>
+                  <input
+                    className="text-input"
+                    style={{ flex: 1, minWidth: 0 }}
+                    value={cue.text}
+                    placeholder="Wait for it…"
+                    onChange={(event) => set({ text: event.target.value })}
+                  />
+                  <button className="mini-btn" style={{ flex: 'none' }} title="Remove" onClick={() => onExportSettings({ shortsCues: cues.filter((_, j) => j !== i) })}>
                     ×
                   </button>
                 </div>
@@ -319,8 +328,13 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
                 </button>
               )}
             </div>
+            {(settings.shortsCues ?? []).length === 0 && (
+              <p className="hint" style={{ margin: 0 }}>
+                Texts that pop up at moments of the Short. Add your own, or let Auto-fill time them to the music.
+              </p>
+            )}
           </div>
-        </Field>
+        </div>
         {(settings.shortsCues ?? []).length > 0 && (
           <Slider
             label="Pop-up height"
@@ -349,9 +363,14 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
             </button>
           )}
         </div>
-        <button className="btn primary" disabled={props.busy || !mp4Supported} onClick={props.onExportShort}>
-          Export Short (MP4)
-        </button>
+        <div className="field-row" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <button className="btn" disabled={props.busy} onClick={props.onOpenShortPreview}>
+            Preview Short
+          </button>
+          <button className="btn primary" disabled={props.busy || !mp4Supported} onClick={props.onExportShort}>
+            Export Short (MP4)
+          </button>
+        </div>
         <p className="hint">
           Vertical 1080×1920 with sound, starting right on the hardest-hitting part of the song. The caption stays on screen
           the whole time, white on a see-through black band; drag it on the pad (the hatched areas are where the Shorts

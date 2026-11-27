@@ -18,6 +18,8 @@ import { renderSvg } from './export/SvgExporter';
 import { exportFrameSequence, recordWebm } from './export/VideoExporter';
 import { evenDimensions, recordMp4 } from './export/Mp4Exporter';
 import { findHook, SHORTS_SIZE, suggestCues } from './export/ShortsHook';
+import { makeFrameFactory } from './export/VideoExporter';
+import { ShortsPreview } from './components/ShortsPreview';
 import { calculateLayout } from './layout/LayoutEngine';
 import type { LayoutResult, Viewport } from './layout/LayoutEngine';
 import { domainForTimelineMode, projectDuration } from './layout/LayoutEngine';
@@ -1413,8 +1415,9 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
     setExportSettings((previous) => ({ ...previous, shortsCues }));
   }, [project, shortsSeconds, shortsStart, trackStates]);
 
-  const handleExportShort = useCallback(() => {
-    if (!project) return;
+  // Everything that makes the Short, shared by the live preview and the export.
+  const shortPlan = useMemo(() => {
+    if (!project) return null;
     const { width, height } = SHORTS_SIZE;
     const start = shortsStart;
     const end = Math.min(start + shortsSeconds, Math.max(timeline.end, start + 1));
@@ -1438,6 +1441,46 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
     const layout = calculateLayout({ project, settings: shortSettings, trackStates, viewport: probe });
     const spanUnits = layout.domain === 'beats' ? mapper.secondsToBeats(start + 8) - mapper.secondsToBeats(start) : 8;
     const sourceViewport = { ...probe, pxPerUnit: layout.contentWidth / Math.max(spanUnits, 1e-3) };
+    return { width, height, start, end, shortSettings, sourceViewport };
+  }, [exportSettings, mapper, project, settings, shortsSeconds, shortsStart, timeline.end, trackStates]);
+
+  const [shortPreviewOpen, setShortPreviewOpen] = useState(false);
+  const PREVIEW = { width: 540, height: 960 };
+  const shortPreviewFrame = useMemo(() => {
+    if (!shortPlan || !project || !shortPreviewOpen) return null;
+    return makeFrameFactory({
+      project,
+      settings: shortPlan.shortSettings,
+      trackStates,
+      width: PREVIEW.width,
+      height: PREVIEW.height,
+      fitWholeArrangement: false,
+      sourceViewport: shortPlan.sourceViewport,
+      mapper,
+      fps: 60,
+      bitrateMbps: 1,
+      startSeconds: shortPlan.start,
+      endSeconds: shortPlan.end,
+      followAnchor: 0.4,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapper, project, shortPlan, shortPreviewOpen, trackStates]);
+
+  const openShortPreview = useCallback(() => {
+    if (!shortPlan) return;
+    setShortPreviewOpen(true);
+    seekTo(shortPlan.start);
+    if (!playing) handlePlayPause();
+  }, [handlePlayPause, playing, seekTo, shortPlan]);
+
+  const closeShortPreview = useCallback(() => {
+    setShortPreviewOpen(false);
+    if (playing) handlePlayPause();
+  }, [handlePlayPause, playing]);
+
+  const handleExportShort = useCallback(() => {
+    if (!project || !shortPlan) return;
+    const { width, height, start, end, shortSettings, sourceViewport } = shortPlan;
     void runExport('Encoding Short…', async (signal, report) => {
       const engine = audioRef.current;
       const buffer = !engine
@@ -1465,7 +1508,7 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
       });
       downloadBlob(blob, `${sanitizeFileName(fileName)}_short.mp4`);
     });
-  }, [audioOffset, exportSettings, fileName, mapper, project, runExport, settings, shortsSeconds, shortsStart, timeline.end, trackStates]);
+  }, [audioOffset, exportSettings, fileName, mapper, project, runExport, shortPlan, trackStates]);
 
   const handleExportFrames = useCallback(() => {
     const base = exportBase();
@@ -2043,11 +2086,27 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
               onPreviewShort={handlePreviewShort}
               position={position}
               onAutoCues={handleAutoCues}
+              onOpenShortPreview={openShortPreview}
               onCancel={() => abortRef.current?.abort()}
             />
           )}
         </div>
       </div>
+
+      {shortPreviewOpen && shortPlan && shortPreviewFrame && (
+        <ShortsPreview
+          frameAt={shortPreviewFrame}
+          width={PREVIEW.width}
+          height={PREVIEW.height}
+          start={shortPlan.start}
+          end={shortPlan.end}
+          getPosition={() => playbackRef.current.position}
+          playing={playing}
+          onPlayPause={handlePlayPause}
+          onSeek={seekTo}
+          onClose={closeShortPreview}
+        />
+      )}
 
       <div className="status">
         {stats ? (

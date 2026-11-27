@@ -462,7 +462,10 @@ black band), wherever you drag it on the position pad. **Pop-up texts** ("Wait f
 at the seconds you set, counted from the Short's start, for about 2.5 s each. Add, edit or remove
 them by hand, or use **Auto-fill**: it puts "Wait for it…" in the build before the biggest jump in
 energy inside the Short, a shout on the hit itself, a nudge in any long stretch without one, and a
-replay prompt before it loops. Auto-fill replaces the list, which you can then edit. It
+replay prompt before it loops. Auto-fill replaces the list, which you can then edit.
+**Preview Short** plays the Short live in a vertical window, looping over its span with the
+sound, and shows every change you make in the panel straight away, so you don't have to export to
+check it; the hatched areas show where the Shorts player's buttons sit. It
 has no intro or end card, so it loops cleanly. **Hear it** plays from the chosen start;
 **Start at playhead** overrides it, and **Auto** goes back to the automatic start.
 
