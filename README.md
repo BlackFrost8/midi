@@ -457,7 +457,8 @@ their levels, soloed or muted, and the solo focus, mixed down when you export.
 
 **YouTube Short** (Export tab) makes a vertical 1080×1920 MP4 of 15–60 seconds with sound. It
 starts on the downbeat where the song hits hardest (found from note density, velocity and jumps
-in energy, ignoring muted tracks), with your hook caption popping up over the first seconds. It
+in energy, ignoring muted tracks), with your hook caption on screen the whole time, Snapchat style (white text on a see-through
+black band), wherever you drag it on the position pad. It
 has no intro or end card, so it loops cleanly. **Hear it** plays from the chosen start;
 **Start at playhead** overrides it, and **Auto** goes back to the automatic start.
 

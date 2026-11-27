@@ -2237,6 +2237,32 @@ input[type='checkbox'] {
   pointer-events: none;
 }
 
+/* A Short: the player's description and buttons along the bottom and right. */
+.position-pad-safe.short-bottom {
+  top: auto;
+  left: 0;
+  width: auto;
+  height: 20%;
+  border-left: none;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.position-pad-safe.short-right {
+  bottom: 20%;
+  top: 45%;
+  width: 14%;
+}
+
+.position-pad-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 9%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
 .position-pad-dot {
   position: absolute;
   width: 12px;

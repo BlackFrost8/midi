@@ -148,6 +148,9 @@ export interface RenderSettings {
   /** Set only while exporting a Short: the hook caption, and the time it appears (seconds). */
   shortsCaption?: string;
   shortsStart?: number;
+  /** Where the caption sits, as fractions of the frame. */
+  shortsCaptionX?: number;
+  shortsCaptionY?: number;
   /** An end card that fades the picture to black after the music ends. */
   outroCard: boolean;
   outroSeconds: number;
@@ -331,6 +334,8 @@ export interface ExportSettings {
   shortsSeconds?: number;
   shortsCaption?: string;
   shortsStart?: number | null;
+  shortsCaptionX?: number;
+  shortsCaptionY?: number;
 }
 
 export const EXPORT_PRESETS: Array<{ label: string; width: number; height: number }> = [

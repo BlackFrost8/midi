@@ -1422,6 +1422,8 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
       followAnchor: 0.4,
       shortsCaption: caption,
       shortsStart: start,
+      shortsCaptionX: exportSettings.shortsCaptionX ?? 0.5,
+      shortsCaptionY: exportSettings.shortsCaptionY ?? 0.3,
     };
     // About eight seconds across the narrow frame, so the notes have room.
     const probe = { width, height, pixelRatio: 1, pxPerUnit: 1, scrollUnits: 0, scrollY: 0 };

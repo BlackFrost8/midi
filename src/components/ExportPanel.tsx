@@ -7,6 +7,7 @@ import { ffmpegCommand, supportedVideoMimeType, supportsFrameSequence } from '..
 import { evenDimensions, supportsMp4 } from '../export/Mp4Exporter';
 import { SVG_NOTE_WARNING_THRESHOLD } from '../export/SvgExporter';
 import { Field, Section, Slider, Toggle } from './controls';
+import { PositionPad } from './PositionPad';
 import type { ThumbnailExportSize } from './ThumbnailPanel';
 
 interface Props {
@@ -259,6 +260,16 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
             onChange={(event) => onExportSettings({ shortsCaption: event.target.value })}
           />
         </Field>
+        <PositionPad
+          label="Caption position"
+          variant="short"
+          width={130}
+          aspect={9 / 16}
+          align="center"
+          x={settings.shortsCaptionX ?? 0.5}
+          y={settings.shortsCaptionY ?? 0.3}
+          onChange={(shortsCaptionX, shortsCaptionY) => onExportSettings({ shortsCaptionX, shortsCaptionY })}
+        />
         <div className="field-row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <span className="hint" style={{ margin: 0 }}>
             Starts at {formatSeconds(props.shortsStart)}
@@ -280,8 +291,9 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
           Export Short (MP4)
         </button>
         <p className="hint">
-          Vertical 1080×1920 with sound, starting right on the hardest-hitting part of the song with the caption popping up
-          over the first seconds, so it grabs viewers from the first frame. No intro or end card, so it loops cleanly.
+          Vertical 1080×1920 with sound, starting right on the hardest-hitting part of the song. The caption stays on screen
+          the whole time, white on a see-through black band; drag it on the pad (the hatched areas are where the Shorts
+          buttons and description sit). No intro or end card, so it loops cleanly.
         </p>
       </Section>
 

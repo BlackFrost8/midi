@@ -9,6 +9,10 @@ interface Props {
   aspect: number;
   align: 'left' | 'center' | 'right';
   onChange: (x: number, y: number) => void;
+  /** 'short': a 9:16 Short, showing a caption band and where the Shorts player's buttons sit. */
+  variant?: 'end' | 'short';
+  /** Width of the pad, for a tall frame that would otherwise be very tall. */
+  width?: number;
 }
 
 /**
@@ -16,7 +20,7 @@ interface Props {
  * marker is the text's anchor, the side it is aligned to, drawn with a short
  * bar showing which way the text runs from it.
  */
-export function PositionPad({ label, x, y, aspect, align, onChange }: Props) {
+export function PositionPad({ label, x, y, aspect, align, onChange, variant = 'end', width }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const move = (event: React.PointerEvent) => {
     const box = ref.current?.getBoundingClientRect();
@@ -32,7 +36,7 @@ export function PositionPad({ label, x, y, aspect, align, onChange }: Props) {
       <div
         ref={ref}
         className="position-pad"
-        style={{ aspectRatio: String(aspect) }}
+        style={{ aspectRatio: String(aspect), ...(width ? { width, margin: '0 auto' } : {}) }}
         onPointerDown={(event) => {
           (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
           move(event);
@@ -42,8 +46,18 @@ export function PositionPad({ label, x, y, aspect, align, onChange }: Props) {
         }}
         title="Drag to move the text"
       >
-        <span className="position-pad-safe" />
-        <span className="position-pad-bar" style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(${barLeft}%, -50%)` }} />
+        {variant === 'short' ? (
+          <>
+            <span className="position-pad-safe short-bottom" />
+            <span className="position-pad-safe short-right" />
+            <span className="position-pad-band" style={{ top: `${y * 100}%` }} />
+          </>
+        ) : (
+          <>
+            <span className="position-pad-safe" />
+            <span className="position-pad-bar" style={{ left: `${x * 100}%`, top: `${y * 100}%`, transform: `translate(${barLeft}%, -50%)` }} />
+          </>
+        )}
         <span className="position-pad-dot" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} />
       </div>
     </div>
