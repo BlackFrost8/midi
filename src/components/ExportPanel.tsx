@@ -33,6 +33,8 @@ interface Props {
   onPreviewShort: () => void;
   /** The playhead, to start the Short where you are. */
   position: number;
+  /** Fills the pop-up texts with suggestions timed to the music. */
+  onAutoCues: () => void;
   onCancel: () => void;
 }
 
@@ -270,6 +272,66 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
           y={settings.shortsCaptionY ?? 0.3}
           onChange={(shortsCaptionX, shortsCaptionY) => onExportSettings({ shortsCaptionX, shortsCaptionY })}
         />
+        <Field label="Pop-up texts">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+            {(settings.shortsCues ?? []).map((cue, i) => {
+              const cues = settings.shortsCues ?? [];
+              const set = (patch: Partial<{ at: number; text: string }>) =>
+                onExportSettings({ shortsCues: cues.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
+              return (
+                <div key={i} className="field-row" style={{ gap: 4 }}>
+                  <input
+                    className="text-input"
+                    type="number"
+                    min={0}
+                    max={settings.shortsSeconds ?? 30}
+                    step={0.5}
+                    style={{ width: 58, flex: 'none' }}
+                    title="Seconds into the Short"
+                    value={cue.at}
+                    onChange={(event) => set({ at: Math.max(0, Number(event.target.value) || 0) })}
+                  />
+                  <input className="text-input" value={cue.text} placeholder="Wait for it…" onChange={(event) => set({ text: event.target.value })} />
+                  <button className="mini-btn" title="Remove" onClick={() => onExportSettings({ shortsCues: cues.filter((_, j) => j !== i) })}>
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+            <div className="field-row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <button
+                className="btn"
+                onClick={() => {
+                  const cues = settings.shortsCues ?? [];
+                  const last = cues.length ? Math.max(...cues.map((c) => c.at)) : 0;
+                  const at = Math.min(settings.shortsSeconds ?? 30, cues.length ? last + 5 : 3);
+                  onExportSettings({ shortsCues: [...cues, { at, text: '' }] });
+                }}
+              >
+                + Add text
+              </button>
+              <button className="btn" onClick={props.onAutoCues} title="Replaces the list with suggestions timed to the music">
+                Auto-fill
+              </button>
+              {(settings.shortsCues ?? []).length > 0 && (
+                <button className="btn" onClick={() => onExportSettings({ shortsCues: [] })}>
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </Field>
+        {(settings.shortsCues ?? []).length > 0 && (
+          <Slider
+            label="Pop-up height"
+            min={0.1}
+            max={0.78}
+            step={0.01}
+            value={settings.shortsCueY ?? 0.58}
+            format={(value) => `${Math.round(value * 100)}% down`}
+            onChange={(shortsCueY) => onExportSettings({ shortsCueY })}
+          />
+        )}
         <div className="field-row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <span className="hint" style={{ margin: 0 }}>
             Starts at {formatSeconds(props.shortsStart)}
@@ -293,7 +355,9 @@ export const ExportPanel = memo(function ExportPanel(props: Props) {
         <p className="hint">
           Vertical 1080×1920 with sound, starting right on the hardest-hitting part of the song. The caption stays on screen
           the whole time, white on a see-through black band; drag it on the pad (the hatched areas are where the Shorts
-          buttons and description sit). No intro or end card, so it loops cleanly.
+          buttons and description sit). Pop-up texts appear at the second you set (counted from the Short's start) for about
+          2.5 s each; Auto-fill times them to the music, and you can edit, add or remove any of them. No intro or end card, so
+          it loops cleanly.
         </p>
       </Section>
 

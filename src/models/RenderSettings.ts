@@ -151,6 +151,9 @@ export interface RenderSettings {
   /** Where the caption sits, as fractions of the frame. */
   shortsCaptionX?: number;
   shortsCaptionY?: number;
+  /** Pop-up texts at moments of the Short (seconds into it), and how far down they appear (0–1). */
+  shortsCues?: Array<{ at: number; text: string }>;
+  shortsCueY?: number;
   /** An end card that fades the picture to black after the music ends. */
   outroCard: boolean;
   outroSeconds: number;
@@ -336,6 +339,8 @@ export interface ExportSettings {
   shortsStart?: number | null;
   shortsCaptionX?: number;
   shortsCaptionY?: number;
+  shortsCues?: Array<{ at: number; text: string }>;
+  shortsCueY?: number;
 }
 
 export const EXPORT_PRESETS: Array<{ label: string; width: number; height: number }> = [

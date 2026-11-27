@@ -458,7 +458,11 @@ their levels, soloed or muted, and the solo focus, mixed down when you export.
 **YouTube Short** (Export tab) makes a vertical 1080×1920 MP4 of 15–60 seconds with sound. It
 starts on the downbeat where the song hits hardest (found from note density, velocity and jumps
 in energy, ignoring muted tracks), with your hook caption on screen the whole time, Snapchat style (white text on a see-through
-black band), wherever you drag it on the position pad. It
+black band), wherever you drag it on the position pad. **Pop-up texts** ("Wait for it…") appear
+at the seconds you set, counted from the Short's start, for about 2.5 s each. Add, edit or remove
+them by hand, or use **Auto-fill**: it puts "Wait for it…" in the build before the biggest jump in
+energy inside the Short, a shout on the hit itself, a nudge in any long stretch without one, and a
+replay prompt before it loops. Auto-fill replaces the list, which you can then edit. It
 has no intro or end card, so it loops cleanly. **Hear it** plays from the chosen start;
 **Start at playhead** overrides it, and **Auto** goes back to the automatic start.
 

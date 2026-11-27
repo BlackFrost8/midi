@@ -17,7 +17,7 @@ import { downloadBlob, renderPng, sanitizeFileName } from './export/ImageExporte
 import { renderSvg } from './export/SvgExporter';
 import { exportFrameSequence, recordWebm } from './export/VideoExporter';
 import { evenDimensions, recordMp4 } from './export/Mp4Exporter';
-import { findHook, SHORTS_SIZE } from './export/ShortsHook';
+import { findHook, SHORTS_SIZE, suggestCues } from './export/ShortsHook';
 import { calculateLayout } from './layout/LayoutEngine';
 import type { LayoutResult, Viewport } from './layout/LayoutEngine';
 import { domainForTimelineMode, projectDuration } from './layout/LayoutEngine';
@@ -1407,6 +1407,12 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
     if (!playing) handlePlayPause();
   }, [handlePlayPause, playing, seekTo, shortsStart]);
 
+  const handleAutoCues = useCallback(() => {
+    if (!project) return;
+    const shortsCues = suggestCues(project, shortsStart, shortsSeconds, trackStates);
+    setExportSettings((previous) => ({ ...previous, shortsCues }));
+  }, [project, shortsSeconds, shortsStart, trackStates]);
+
   const handleExportShort = useCallback(() => {
     if (!project) return;
     const { width, height } = SHORTS_SIZE;
@@ -1424,6 +1430,8 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
       shortsStart: start,
       shortsCaptionX: exportSettings.shortsCaptionX ?? 0.5,
       shortsCaptionY: exportSettings.shortsCaptionY ?? 0.3,
+      shortsCues: (exportSettings.shortsCues ?? []).filter((cue) => cue.text.trim() && cue.at < shortsSeconds),
+      shortsCueY: exportSettings.shortsCueY ?? 0.58,
     };
     // About eight seconds across the narrow frame, so the notes have room.
     const probe = { width, height, pixelRatio: 1, pxPerUnit: 1, scrollUnits: 0, scrollY: 0 };
@@ -2034,6 +2042,7 @@ Its saved look, tracks, camera keyframes, thumbnail and recording will be remove
               onExportShort={handleExportShort}
               onPreviewShort={handlePreviewShort}
               position={position}
+              onAutoCues={handleAutoCues}
               onCancel={() => abortRef.current?.abort()}
             />
           )}

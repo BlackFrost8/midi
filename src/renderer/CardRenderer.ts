@@ -71,6 +71,70 @@ export function renderCards(ctx: CanvasRenderingContext2D, scene: Scene): void {
   }
   if (scene.settings.outroCard) renderOutro(ctx, scene);
   if (scene.settings.shortsCaption) renderShortsCaption(ctx, scene, scene.settings.shortsCaption);
+  if (scene.settings.shortsCues?.length) renderShortsCues(ctx, scene, scene.settings.shortsCues);
+}
+
+/**
+ * A Short's pop-up texts ("Wait for it…"): each pops in at its moment, big
+ * and bold with a dark outline, overshooting and settling, and stays about
+ * two and a half seconds, or until the next one takes over.
+ */
+function renderShortsCues(ctx: CanvasRenderingContext2D, scene: Scene, cues: Array<{ at: number; text: string }>): void {
+  const now = clock(scene) - (scene.settings.shortsStart ?? 0);
+  const list = cues.filter((cue) => cue.text.trim()).sort((a, b) => a.at - b.at);
+  const index = list.findIndex((cue, i) => now >= cue.at && now < Math.min(cue.at + 2.5, list[i + 1]?.at ?? Infinity));
+  if (index < 0) return;
+  const cue = list[index];
+  const t = now - cue.at;
+  const until = Math.min(2.5, (list[index + 1]?.at ?? Infinity) - cue.at);
+  const { W, H } = frame(scene);
+  const q = Math.min(1, t / 0.32);
+  const pop = q >= 1 ? 1 : 1 - Math.pow(2, -10 * q) * Math.cos(q * Math.PI * 2.4);
+  const scale = 0.5 + 0.5 * pop;
+  // Fades out only when it runs its full time; a following cue simply replaces it.
+  const out = until >= 2.5 ? 1 - smooth((t - (until - 0.25)) / 0.25) : 1;
+  const alpha = Math.min(1, t / 0.05) * out;
+  if (alpha <= 0.002) return;
+
+  ctx.save();
+  let size = W * 0.085;
+  const maxWidth = W * 0.86;
+  const wrap = () => {
+    ctx.font = `800 ${size}px ${FONT_STACK}`;
+    const lines: string[] = [];
+    let line = '';
+    for (const word of cue.text.trim().split(/\s+/)) {
+      const next = line ? `${line} ${word}` : word;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  let lines = wrap();
+  while ((lines.length > 3 || lines.some((l) => ctx.measureText(l).width > maxWidth)) && size > W * 0.04) {
+    size *= 0.9;
+    lines = wrap();
+  }
+  const lineHeight = size * 1.1;
+  ctx.translate(W / 2, H * (scene.settings.shortsCueY ?? 0.58));
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  const top = -((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((l, i) => {
+    const y = top + i * lineHeight;
+    ctx.lineWidth = size * 0.18;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.strokeText(l, 0, y);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(l, 0, y);
+  });
+  ctx.restore();
 }
 
 /**
